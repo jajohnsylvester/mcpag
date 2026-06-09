@@ -120,7 +120,7 @@ async def run_workspace_agent(query_text, status_placeholder, response_placehold
 query_input = st.text_area(
     "What operations would you like the agent to execute across your environments?",
     value="Search for the latest breakthroughs regarding DeepSeek models this week, then tell me if you have any corresponding tools to write a note down about it.",
-    height=120  # Fixed parameter here
+    height=120  # Fixed parameter
 )
 
 if st.button("Execute Unified Pipeline", type="primary"):
