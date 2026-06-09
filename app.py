@@ -74,14 +74,16 @@ async def run_workspace_agent(query_text, status_placeholder, response_placehold
             instructions=(
                 "You are an advanced ecosystem workspace researcher with cross-platform tools. "
                 "You have access to Zoho Tools, Zoho Notebook, and Tavily Web Search servers. "
-                "Use Tavily for external validation and facts, and Zoho tools/notebook endpoints "
+                "Use Tavily for external validation and facts"
+                "Use Zoho tools for Zoho mail , Zoho sheet"
+                "Use Zoho notebook for Zoho notebooks"
                 "to look up or save application-specific data when instructed."
             ),
             # Supply models and servers cleanly via array listings
             model="openai/llama3.2",
             mcp_servers=[z_tools, t_search, z_notebook],
             model_settings=ModelSettings(
-                temperature=0.2
+                temperature=0.1
             )
         )
 
