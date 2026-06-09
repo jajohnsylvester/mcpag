@@ -1,0 +1,5 @@
+streamlit
+google-adk
+litellm
+tavily-python
+mcp>=1.23.0
