@@ -7,9 +7,9 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
-# Standard ADK imports for Model Context Protocol interactions
-from google.adk.tools.mcp_tool import McpToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import SseServerParams
+# Corrected imports matching Google ADK specifications
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 
 # -----------------------------------------------------------------------------
 # 1. Streamlit App Layout & Page Setup
@@ -20,7 +20,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🤖 Unified Workspace Agent")
+st.title("🤖 Kaggle + MCP (Tavily) + Zoho Agent")
 st.markdown(
     "Powered by **Kaggle (Llama 3.2)** connected via Ngrok, interacting with "
     "**Tavily Search**, **Zoho Tools**, and **Zoho Notebook** over remote MCP pipelines."
@@ -41,29 +41,32 @@ os.environ["OPENAI_EXTRA_HEADERS"] = '{"ngrok-skip-browser-warning": "true"}'
 # 2. Unified MCP Agent Execution Pipeline
 # -----------------------------------------------------------------------------
 async def run_workspace_agent(query_text, status_placeholder, response_placeholder):
-    status_placeholder.info("🔌 Connecting to Zoho and Tavily MCP Server endpoints via SSE...")
-    
-    # Configure your exact multi-server dictionary parameters
-    mcp_servers = {
-        "zoho_tools": SseServerParams(
-            url="https://zohotools-927251920.zohomcp.com/mcp/c3683f8a8379bf01918bad1f1e949010/message"
-        ),
-        "tavily_search": SseServerParams(
-            url="https://mcp.tavily.com/mcp/?tavilyApiKey=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"
-        ),
-        "zoho_notebook": SseServerParams(
-            url="https://zohonotebook-927251920.zohomcp.com/mcp/76a43f2917b58e9824c25ff9b8c3a76b/message"
-        )
-    }
+    status_placeholder.info("🔌 Initializing remote MCP Server connections...")
     
     try:
-        # Core McpToolset mapping class setup
-        mcp_toolset = McpToolset(servers=mcp_servers)
-        all_discovered_tools = mcp_toolset.tools
-        
-        status_placeholder.info(
-            f"🧬 Successfully fetched and aggregated {len(all_discovered_tools)} tools from MCP endpoints!"
+        # 💡 FIXED: Instantiate individual MCPToolsets for each standalone endpoint
+        # Remote web-facing HTTP/SSE servers use StreamableHTTPConnectionParams in ADK
+        zoho_tools_set = MCPToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url="https://zohotools-927251920.zohomcp.com/mcp/c3683f8a8379bf01918bad1f1e949010/message"
+            )
         )
+        
+        tavily_search_set = MCPToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url="https://mcp.tavily.com/mcp/?tavilyApiKey=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"
+            )
+        )
+        
+        zoho_notebook_set = MCPToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url="https://zohonotebook-927251920.zohomcp.com/mcp/76a43f2917b58e9824c25ff9b8c3a76b/message"
+            )
+        )
+        
+        # Combine the toolset configurations into a flat list for the agent
+        mcp_tools_list = [zoho_tools_set, tavily_search_set, zoho_notebook_set]
+        status_placeholder.info("🧬 MCP servers configured. Initializing agent engine...")
         
     except Exception as initialization_err:
         status_placeholder.error(f"Failed establishing endpoints: {str(initialization_err)}")
@@ -78,15 +81,15 @@ async def run_workspace_agent(query_text, status_placeholder, response_placehold
 
     # Instantiate the unified workspace framework agent
     workspace_agent = LlmAgent(
-        name="kaggl_mcp_zoho_bundle_agent",
         model=custom_llm,
+        name="kaggl_mcp_zoho_bundle_agent",
         instruction=(
             "You are an advanced ecosystem workspace researcher with cross-platform tools. "
             "You have direct access to Zoho Tools, Zoho Notebook, and Tavily Web Search. "
             "Use Tavily for external validation and facts, and Zoho tools/notebook endpoints "
             "to look up or save application-specific data when instructed."
         ),
-        tools=all_discovered_tools  
+        tools=mcp_tools_list  # Pass the toolsets directly here
     )
 
     # Session storage allocation
@@ -120,7 +123,7 @@ async def run_workspace_agent(query_text, status_placeholder, response_placehold
 query_input = st.text_area(
     "What operations would you like the agent to execute across your environments?",
     value="Search for the latest breakthroughs regarding DeepSeek models this week, then tell me if you have any corresponding tools to write a note down about it.",
-    height=120  # Fixed parameter
+    height=120
 )
 
 if st.button("Execute Unified Pipeline", type="primary"):
