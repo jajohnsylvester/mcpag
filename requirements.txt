@@ -1,5 +1,5 @@
 streamlit
-google-adk
+openai-agents
+openai
 litellm
-tavily-python
-mcp>=1.23.0
+mcp>=1.24.0
