@@ -1,32 +1,29 @@
 import os
 import asyncio
 import streamlit as st
-from google.genai import types  
-from google.adk.agents import LlmAgent  
-from google.adk.models.lite_llm import LiteLlm 
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 
-# Corrected imports matching Google ADK specifications
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+# Import the core, official OpenAI Agents SDK Primitives
+from openai import AsyncOpenAI
+from agents import Agent, Runner
+from agents.model_settings import ModelSettings
+from agents.mcp import MCPServerStreamableHttp
 
 # -----------------------------------------------------------------------------
-# 1. Streamlit App Layout & Page Setup
+# 1. Streamlit App Layout & Configuration Windows
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Kaggle + MCP (Tavily) + Zoho Agent", 
+    page_title="Kaggle + MCP + Zoho (OpenAI Agent SDK)", 
     page_icon="🤖", 
     layout="wide"
 )
 
-st.title("🤖 Kaggle + MCP (Tavily) + Zoho Agent")
+st.title("🤖 Unified Workspace Agent (OpenAI SDK)")
 st.markdown(
-    "Powered by **Kaggle (Llama 3.2)** connected via Ngrok, interacting with "
-    "**Tavily Search**, **Zoho Tools**, and **Zoho Notebook** over remote MCP pipelines."
+    "Powered by the **OpenAI Agents SDK** driving a remote **Kaggle Llama 3.2** instance "
+    "connected via Ngrok, interacting seamlessly with **Tavily**, **Zoho Tools**, and **Zoho Notebook**."
 )
 
-# Sidebar Configuration Layout
+# Sidebar Configuration Setup
 st.sidebar.header("🔌 Connection Settings")
 ngrok_url = st.sidebar.text_input(
     "Kaggle Ngrok URL", 
@@ -34,88 +31,73 @@ ngrok_url = st.sidebar.text_input(
     help="Enter your active Kaggle server Ngrok endpoint address"
 )
 
-# Avoid browser warning blocks automatically inside LiteLLM requests
+# Instruct the network transport layer to bypass browser warning wrappers automatically
 os.environ["OPENAI_EXTRA_HEADERS"] = '{"ngrok-skip-browser-warning": "true"}'
 
 # -----------------------------------------------------------------------------
 # 2. Unified MCP Agent Execution Pipeline
 # -----------------------------------------------------------------------------
 async def run_workspace_agent(query_text, status_placeholder, response_placeholder):
-    status_placeholder.info("🔌 Initializing remote MCP Server connections...")
+    status_placeholder.info("🔌 Connecting to remote HTTP/SSE MCP servers...")
     
-    try:
-        # 💡 FIXED: Instantiate individual MCPToolsets for each standalone endpoint
-        # Remote web-facing HTTP/SSE servers use StreamableHTTPConnectionParams in ADK
-        zoho_tools_set = MCPToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url="https://zohotools-927251920.zohomcp.com/mcp/c3683f8a8379bf01918bad1f1e949010/message"
-            )
-        )
-        
-        tavily_search_set = MCPToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url="https://mcp.tavily.com/mcp/?tavilyApiKey=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"
-            )
-        )
-        
-        zoho_notebook_set = MCPToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url="https://zohonotebook-927251920.zohomcp.com/mcp/76a43f2917b58e9824c25ff9b8c3a76b/message"
-            )
-        )
-        
-        # Combine the toolset configurations into a flat list for the agent
-        mcp_tools_list = [zoho_tools_set, tavily_search_set, zoho_notebook_set]
-        status_placeholder.info("🧬 MCP servers configured. Initializing agent engine...")
-        
-    except Exception as initialization_err:
-        status_placeholder.error(f"Failed establishing endpoints: {str(initialization_err)}")
-        return
+    # Define remote connection context configurations
+    # Modern endpoint wrappers use MCPServerStreamableHttp in OpenAI Agents SDK
+    zoho_tools_server = MCPServerStreamableHttp(
+        name="Zoho Tools",
+        params={"url": "https://zohotools-927251920.zohomcp.com/mcp/c3683f8a8379bf01918bad1f1e949010/message"}
+    )
+    
+    tavily_search_server = MCPServerStreamableHttp(
+        name="Tavily Search",
+        params={"url": "https://mcp.tavily.com/mcp/?tavilyApiKey=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"}
+    )
+    
+    zoho_notebook_server = MCPServerStreamableHttp(
+        name="Zoho Notebook",
+        params={"url": "https://zohonotebook-927251920.zohomcp.com/mcp/76a43f2917b58e9824c25ff9b8c3a76b/message"}
+    )
 
-    # Point directly to your remote Llama 3.2 engine
-    custom_llm = LiteLlm(
-        model="openai/llama3.2",
-        api_key="not-needed-for-ollama", 
+    # Route request calls away from OpenAI endpoints to your Kaggle instance
+    custom_client = AsyncOpenAI(
+        api_key="not-needed-for-ollama",
         base_url=f"{ngrok_url.rstrip('/')}/v1"
     )
 
-    # Instantiate the unified workspace framework agent
-    workspace_agent = LlmAgent(
-        model=custom_llm,
-        name="kaggl_mcp_zoho_bundle_agent",
-        instruction=(
-            "You are an advanced ecosystem workspace researcher with cross-platform tools. "
-            "You have direct access to Zoho Tools, Zoho Notebook, and Tavily Web Search. "
-            "Use Tavily for external validation and facts, and Zoho tools/notebook endpoints "
-            "to look up or save application-specific data when instructed."
-        ),
-        tools=mcp_tools_list  # Pass the toolsets directly here
-    )
+    # Context managers manage the client lifecycle during network transport turns
+    async with zoho_tools_server as z_tools, tavily_search_server as t_search, zoho_notebook_server as z_notebook:
+        
+        status_placeholder.info("🧬 Mapping discovered endpoint schemas to Llama 3.2...")
+        
+        # Instantiate the official OpenAI SDK Agent primitive
+        workspace_agent = Agent(
+            name="openai_mcp_workspace_agent",
+            instructions=(
+                "You are an advanced ecosystem workspace researcher with cross-platform tools. "
+                "You have access to Zoho Tools, Zoho Notebook, and Tavily Web Search servers. "
+                "Use Tavily for external validation and facts, and Zoho tools/notebook endpoints "
+                "to look up or save application-specific data when instructed."
+            ),
+            # Supply models and servers cleanly via array listings
+            model="openai/llama3.2",
+            mcp_servers=[z_tools, t_search, z_notebook],
+            model_settings=ModelSettings(
+                temperature=0.2
+            )
+        )
 
-    # Session storage allocation
-    session_service = InMemorySessionService()
-    session = await session_service.create_session(
-        app_name="KaggleAgentApp", user_id="streamlit_user", session_id="session_streamlit"
-    )
-    
-    runner = Runner(agent=workspace_agent, app_name="KaggleAgentApp", session_service=session_service)
-    structured_message = types.Content(role='user', parts=[types.Part(text=query_text)])
-    
-    status_placeholder.info("🚀 Submitting workflow request to Llama 3.2 context pipeline...")
-    
-    try:
-        async for event in runner.run_async(user_id="streamlit_user", session_id=session.id, new_message=structured_message):
-            if event.get_function_calls():
-                status_placeholder.warning("⚙️ [MCP Triggered]: Llama 3.2 is invoking an external protocol tool...")
-            elif event.get_function_responses():
-                status_placeholder.success("📊 [Payload Processed]: Data returned from endpoint back to core model.")
-            elif event.is_final_response():
-                if event.content and event.content.parts:
-                    status_placeholder.empty() 
-                    response_placeholder.markdown("### 📝 Agent Output Summary")
-                    response_placeholder.markdown(event.content.parts[0].text)
-    except Exception as execution_err:
-        status_placeholder.error(f"Runtime processing failure: {str(execution_err)}")
+        status_placeholder.warning("⚙️ [OpenAI Runner Active]: Llama evaluating tool multi-turn execution loops...")
+        
+        try:
+            # Execute asynchronously through the main turn-management runner
+            result = await Runner.run(workspace_agent, query_text) #
+            
+            # Wipe processing flags and drop summary clean into markdown blocks
+            status_placeholder.empty() 
+            response_placeholder.markdown("### 📝 Agent Output Summary")
+            response_placeholder.markdown(result.final_output) #
+            
+        except Exception as execution_err:
+            status_placeholder.error(f"Runtime processing failure: {str(execution_err)}")
 
 # -----------------------------------------------------------------------------
 # 3. UI Forms and Async Main Threads Binding Intermediary
@@ -133,7 +115,7 @@ if st.button("Execute Unified Pipeline", type="primary"):
         status_box = st.empty()
         response_box = st.empty()
         
-        # Safe cross-platform event loop thread assignment
+        # Web server asynchronous lifecycle bridge encapsulation
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
