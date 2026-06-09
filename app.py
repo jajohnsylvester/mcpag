@@ -14,7 +14,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import SseServerParams
 # -----------------------------------------------------------------------------
 # 1. Streamlit App Layout & Configurations
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="Kaggle MCP Research Agent", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Kaggle + MCP search + Zoho Tools Agent", page_icon="🤖", layout="wide")
 
 st.title("🤖 Multi-Server MCP & Llama 3.2 Research Agent")
 st.markdown(
